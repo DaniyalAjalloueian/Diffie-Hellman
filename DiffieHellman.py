@@ -1,5 +1,6 @@
-from math import isqrt
+
 from time import sleep
+from secrets import randbits, randbelow
 
 
 class DiffieHellman:
@@ -15,6 +16,7 @@ class DiffieHellman:
     def __init__(
         self,
         p: int | None = None,
+        q: int | None = None,
         g: int | None = None,
         a: int | None = None,
         b: int | None = None,
@@ -24,6 +26,7 @@ class DiffieHellman:
         SB: int | None = None
     ):
         self.p = p
+        self.q = q
         self.g = g
         self.a = a
         self.b = b
@@ -37,50 +40,107 @@ class DiffieHellman:
         return any(num is None for num in NumsToCheck)
 
     @staticmethod
-    def isPrime(*NumsToCheck: int | None) -> bool:
-        """Check if all numbers are prime."""
+    def isPrime(*NumsToCheck: int | None, k: int = 16) -> bool:
+        """Check whether all given numbers are probably prime using Miller-Rabin."""
 
-        if not NumsToCheck:
+        if not NumsToCheck or k < 1:
             return False
 
-        for num in NumsToCheck:
-            if num is None or type(num) is not int or num < 2:
+        smallPrimes = (
+            2, 3, 5, 7, 11, 13, 17, 19, 23, 29,
+            31, 37, 41, 43, 47, 53, 59, 61, 67, 71,
+            73, 79, 83, 89, 97
+        )
+
+        for n in NumsToCheck:
+            if type(n) is not int or n < 2:
                 return False
 
-            for i in range(2, isqrt(num) + 1):
-                if num % i == 0:
+            for prime in smallPrimes:
+                if n == prime:
+                    break
+
+                if n % prime == 0:
                     return False
+            else:
+                d = n - 1
+                s = 0
+
+                while d % 2 == 0:
+                    d //= 2
+                    s += 1
+
+                for _ in range(k):
+                    a = randbelow(n - 3) + 2
+                    x = pow(a, d, n)
+
+                    if x == 1 or x == n - 1:
+                        continue
+
+                    for _ in range(s - 1):
+                        x = pow(x, 2, n)
+
+                        if x == n - 1:
+                            break
+                    else:
+                        return False
 
         return True
+
+    def generateSafePrime(self) -> int:
+        while True:
+            q = randbits(511) | (1 << 510) | 1
+            p = (q * 2) + 1
+
+            if self.isPrime(q) and self.isPrime(p):
+                self.q = q
+                return p
+
+    def generateGenerator(self) -> int:
+        if self.isNone(self.p, self.q):
+            raise ValueError("p and q must be initialized!")
+
+        while True:
+            h = randbelow(self.p - 3) + 2
+            g = pow(h, 2, self.p)
+
+            if g != 1:
+                return g
+
+    def generatePrivateKey(self) -> int:
+        if self.q is None or self.q < 5:
+            raise ValueError("Invalid q!")
+
+        return randbelow(self.q - 3) + 2
 
     def getInput(
         self,
         message: str,
-        checkPrime: bool = False
+        generator=None
     ) -> int:
-        value = self.convertToInt(input(message))
+        value = input(message).strip()
 
-        if not self.checkInput(value, checkPrime=checkPrime):
-            raise ValueError("Invalid Input!")
+        if value == "":
+            if generator is None:
+                raise ValueError("Empty input is not allowed!")
+
+            return generator()
+
+        value = self.convertToInt(value)
+
+        if not self.checkInput(value):
+            raise ValueError("Invalid input!")
 
         return value
 
     @staticmethod
     def convertToInt(num: int | str) -> int:
-        """Convert input to integer."""
-
         try:
             return int(num)
         except (ValueError, TypeError):
-            raise ValueError("Not a Number!") from None
+            raise ValueError("Input must be a valid integer!") from None
 
-    def checkInput(
-        self,
-        *NumsToCheck: int | str | None,
-        checkPrime: bool = False
-    ) -> bool:
-        """Validate input numbers."""
-
+    def checkInput(self, *NumsToCheck: int | str | None) -> bool:
         if not NumsToCheck:
             return False
 
@@ -93,34 +153,31 @@ class DiffieHellman:
             if num < 1:
                 return False
 
-            if checkPrime and not self.isPrime(num):
-                return False
-
         return True
 
     def calcPublic(self, private: int) -> int:
         if self.isNone(self.p, self.g, private):
-            raise ValueError("Invalid Input!")
+            raise ValueError("Invalid input!")
 
-        if self.p < 2 or self.g < 2 or private < 1:
-            raise ValueError("Invalid Diffie-Hellman Parameters!")
-
-        if self.g >= self.p:
-            raise ValueError("Generator must be smaller than p!")
+        if self.p < 2 or not 2 <= self.g < self.p or private < 1:
+            raise ValueError("Invalid Diffie-Hellman parameters!")
 
         return pow(self.g, private, self.p)
 
     def calcSharedSecret(self, person: str) -> int:
         if person.upper() == "A":
             if self.isNone(self.B, self.a, self.p):
-                raise ValueError("Invalid Input!")
+                raise ValueError("Invalid input!")
+
             return pow(self.B, self.a, self.p)
-        elif person.upper() == "B":
+
+        if person.upper() == "B":
             if self.isNone(self.A, self.b, self.p):
-                raise ValueError("Invalid Input!")
+                raise ValueError("Invalid input!")
+
             return pow(self.A, self.b, self.p)
-        else:
-            raise ValueError("Invalid Person!")
+
+        raise ValueError("Invalid person!")
 
     def printMessage(self, message: str, color: str = "WHITE") -> None:
         color_code = self.COLORS.get(color.upper())
@@ -132,49 +189,58 @@ class DiffieHellman:
         print(f"{color_code}{message}{self.COLORS['WHITE']}")
 
     def main(self):
+        self.printMessage(
+            "Leave Empty to auto generate parameters!",
+            "YELLOW"
+        )
+
         try:
             self.p = self.getInput(
-                "Please Enter a prime number, p:",
-                checkPrime=True
+                "Enter the public prime modulus (p): ",
+                self.generateSafePrime
             )
 
             self.g = self.getInput(
-                "Please Enter a generator, g:"
+                "Enter the public generator (g): ",
+                self.generateGenerator
             )
 
             self.a = self.getInput(
-                "Please Enter Person A Private, a:"
+                "Enter Person A's private key (a): ",
+                self.generatePrivateKey
             )
 
             self.b = self.getInput(
-                "Please Enter Person B Private, b:"
+                "Enter Person B's private key (b): ",
+                self.generatePrivateKey
             )
 
-            self.printMessage("Inputs accepted!", "GREEN")
+            self.printMessage("All parameters have been accepted.", "GREEN")
 
-            self.printMessage("Calculating Person A Public...", "YELLOW")
-            self.A = self.calcPublic(
-                self.a
-            )
+            self.printMessage("Calculating Person A's public key...", "YELLOW")
+            self.A = self.calcPublic(self.a)
             sleep(0.5)
-            self.printMessage(f"Person A Public, A:{self.A}", "CYAN")
+            self.printMessage(f"Person A's public key (A): {self.A}", "CYAN")
 
-            self.printMessage("Calculating Person B Public...", "YELLOW")
-            self.B = self.calcPublic(
-                self.b
-            )
+            self.printMessage("Calculating Person B's public key...", "YELLOW")
+            self.B = self.calcPublic(self.b)
             sleep(0.5)
-            self.printMessage(f"Person B  Public, B:{self.B}", "CYAN")
+            self.printMessage(f"Person B's public key (B): {self.B}", "CYAN")
 
-            self.printMessage("Calculating Shared Secret...")
-            self.SA = self.calcSharedSecret(
-                "A"
-            )
-            self.SB = self.calcSharedSecret(
-                "B"
-            )
+            self.printMessage("Calculating the shared secret...", "YELLOW")
+            self.SA = self.calcSharedSecret("A")
+            self.SB = self.calcSharedSecret("B")
             sleep(0.5)
-            self.printMessage(f"Shared Secret: {self.SA=} {self.SB=}", "CYAN")
+
+            self.printMessage(
+                f"Shared secrets:\nPerson A = {self.SA}\nPerson B = {self.SB}",
+                "CYAN"
+            )
+
+            if self.SA == self.SB:
+                self.printMessage("Shared secrets match!", "GREEN")
+            else:
+                self.printMessage("Shared secrets do not match!", "RED")
 
         except ValueError as e:
             self.printMessage(str(e), "RED")
