@@ -29,8 +29,7 @@ class DiffieHellman:
     def calcPublic(self, private: int) -> int:
         if (self.isNone(self.p, self.g, private)):
             return f"{self.COLORS["RED"]}Invalid Input!{self.COLORS["WHITE"]}"
-        self.A = pow(self.g, private, self.p)
-        return self.A
+        return pow(self.g, private, self.p)
 
     COLORS: dict = {
     'RED' : '\033[91m',
