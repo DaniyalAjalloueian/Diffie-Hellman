@@ -19,7 +19,9 @@ class DiffieHellman:
         a: int | None = None,
         b: int | None = None,
         A: int | None = None,
-        B: int | None = None
+        B: int | None = None,
+        SA: int | None = None,
+        SB: int | None = None
     ):
         self.p = p
         self.g = g
@@ -27,6 +29,8 @@ class DiffieHellman:
         self.b = b
         self.A = A
         self.B = B
+        self.SA = SA
+        self.SB = SB
 
     @staticmethod
     def isNone(*NumsToCheck: int | None) -> bool:
@@ -106,6 +110,18 @@ class DiffieHellman:
 
         return pow(self.g, private, self.p)
 
+    def calcSharedSecret(self, person: str) -> int:
+        if person.upper() == "A":
+            if self.isNone(self.B, self.a, self.p):
+                raise ValueError("Invalid Input!")
+            return pow(self.B, self.a, self.p)
+        elif person.upper() == "B":
+            if self.isNone(self.A, self.b, self.p):
+                raise ValueError("Invalid Input!")
+            return pow(self.A, self.b, self.p)
+        else:
+            raise ValueError("Invalid Person!")
+
     def printMessage(self, message: str, color: str = "WHITE") -> None:
         color_code = self.COLORS.get(color.upper())
 
@@ -141,14 +157,24 @@ class DiffieHellman:
                 self.a
             )
             sleep(0.5)
-            self.printMessage(f"Person A Public: A:{self.A}", "CYAN")
+            self.printMessage(f"Person A Public, A:{self.A}", "CYAN")
 
             self.printMessage("Calculating Person B Public...", "YELLOW")
             self.B = self.calcPublic(
                 self.b
             )
             sleep(0.5)
-            self.printMessage(f"Person B  Public: B:{self.B}", "CYAN")
+            self.printMessage(f"Person B  Public, B:{self.B}", "CYAN")
+
+            self.printMessage("Calculating Shared Secret...")
+            self.SA = self.calcSharedSecret(
+                "A"
+            )
+            self.SB = self.calcSharedSecret(
+                "B"
+            )
+            sleep(0.5)
+            self.printMessage(f"Shared Secret: {self.SA=} {self.SB=}", "CYAN")
 
         except ValueError as e:
             self.printMessage(str(e), "RED")
