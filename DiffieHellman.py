@@ -1,4 +1,5 @@
 from math import isqrt
+from time import sleep
 
 
 class DiffieHellman:
@@ -6,7 +7,6 @@ class DiffieHellman:
         "RED": "\033[91m",
         "GREEN": "\033[92m",
         "YELLOW": "\033[93m",
-        "BLUE": "\033[94m",
         "PURPLE": "\033[95m",
         "CYAN": "\033[96m",
         "WHITE": "\033[m"
@@ -118,15 +118,37 @@ class DiffieHellman:
     def main(self):
         try:
             self.p = self.getInput(
-                "Please Enter a prime number: ",
+                "Please Enter a prime number, p:",
                 checkPrime=True
             )
 
             self.g = self.getInput(
-                "Please Enter a generator: "
+                "Please Enter a generator, g:"
+            )
+
+            self.a = self.getInput(
+                "Please Enter Person A Private, a:"
+            )
+
+            self.b = self.getInput(
+                "Please Enter Person B Private, b:"
             )
 
             self.printMessage("Inputs accepted!", "GREEN")
+
+            self.printMessage("Calculating Person A Public...", "YELLOW")
+            self.A = self.calcPublic(
+                self.a
+            )
+            sleep(0.5)
+            self.printMessage(f"Person A Public: A:{self.A}", "CYAN")
+
+            self.printMessage("Calculating Person B Public...", "YELLOW")
+            self.B = self.calcPublic(
+                self.b
+            )
+            sleep(0.5)
+            self.printMessage(f"Person B  Public: B:{self.B}", "CYAN")
 
         except ValueError as e:
             self.printMessage(str(e), "RED")
